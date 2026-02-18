@@ -29,7 +29,7 @@ No video editing skills needed. Just point it at a repo and get a ready-to-share
 
 Here's a viral video generated for [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps) (95K+ ⭐):
 
-https://github.com/user-attachments/assets/c33a9caa-ca88-4bc7-a8a2-44baa7e5a0c9
+<video src="awesome_llm_apps.mp4" width="100%" controls></video>
 
 ---
 
@@ -40,7 +40,7 @@ https://github.com/user-attachments/assets/c33a9caa-ca88-4bc7-a8a2-44baa7e5a0c9
 - **Python 3.10+**
 - **Node.js 18+**
 - **FFmpeg:** `brew install ffmpeg` on macOS or `apt install ffmpeg` on Ubuntu
-- **Gemini API key:** [Get yours here](https://aistudio.google.com/apikey)
+- **Gemini API key:** Get your API from [Vertex AI Studio](https://vertexai.google.com) or [Google AI Studio](https://aistudio.google.com). 
 
 ### Installation
 
