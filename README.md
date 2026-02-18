@@ -29,7 +29,7 @@ No video editing skills needed. Just point it at a repo and get a ready-to-share
 
 Here's a viral video generated for [awesome-llm-apps](https://github.com/Shubhamsaboo/awesome-llm-apps) (95K+ ⭐):
 
-<video src="awesome_llm_apps.mp4" width="100%" controls></video>
+[![Awesome LLM Apps](https://img.youtube.com/vi/C6mMseavn8Q/maxresdefault.jpg)](https://youtu.be/C6mMseavn8Q)
 
 ---
 
