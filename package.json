@@ -1,0 +1,9 @@
+{
+  "name": "repotovideo",
+  "private": true,
+  "scripts": {
+    "install:all": "pip install -r apps/api/requirements.txt && cd apps/video && npm install && cd ../.. && cd apps/web && npm install",
+    "dev:web": "cd apps/web && npm run dev",
+    "generate": "python3 generate.py"
+  }
+}
