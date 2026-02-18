@@ -53,7 +53,7 @@ cd repotovideo
 npm run install:all
 
 # 3. Set your Gemini API key
-export GEMINI_API_KEY=your-key-here
+export GEMINI_API_KEY="your-key-here"
 ```
 
 This installs Python dependencies, the video renderer, and the web frontend in one command.
@@ -78,11 +78,11 @@ python generate.py https://github.com/user/repo --music hype --voice Puck
 ### Run the Web UI
 
 ```bash
-# Terminal 1 — Start the API server
+# Terminal 1 — Start the API server (from project root)
 cd apps/api
 python3 server.py
 
-# Terminal 2 — Start the web frontend
+# Terminal 2 — Start the web frontend (from project root)
 npm run dev:web
 ```
 
