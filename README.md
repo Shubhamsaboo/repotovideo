@@ -14,14 +14,14 @@ No video editing skills needed. Just point it at a repo and get a ready-to-share
 
 ## ✨ Features
 
-- 🔥 **Kinetic Typography** — Words slam in from all directions with spring physics
-- 📊 **Animated Counters** — Star counts and fork counts animate from 0 to their final number
-- 🎤 **AI Voiceover** — Gemini TTS generates natural, conversational narration for each scene
-- 🎵 **Background Music** — 4 bundled royalty-free tracks (chill, upbeat, tech, hype) or use your own
-- ⚡ **Fast Cuts** — Slide transitions between scenes — nothing stays static
-- 🧠 **Smart Analysis** — Gemini 3 Pro reads the repo page directly and extracts impressive stats, features, and selling points
-- 🎯 **Adaptive Scenes** — Automatically selects different video styles based on repo maturity (4–6 scenes)
-- 🖥️ **Web UI** — Modern frontend to generate videos right from your browser
+- 🔥 **Kinetic Typography:** Words slam in from all directions with spring physics
+- 📊 **Animated Counters:** Star counts and fork counts animate from 0 to their final number
+- 🎤 **AI Voiceover:** Gemini TTS generates natural, conversational narration for each scene
+- 🎵 **Background Music:** 4 bundled royalty-free tracks (chill, upbeat, tech, hype) or use your own
+- ⚡ **Fast Cuts:** Slide transitions between scenes, nothing stays static
+- 🧠 **Smart Analysis:** Gemini 3 Pro reads the repo page directly and extracts impressive stats, features, and selling points
+- 🎯 **Adaptive Scenes:** Automatically selects different video styles based on repo maturity (4–6 scenes)
+- 🖥️ **Web UI:** Modern frontend to generate videos right from your browser
 
 ---
 
@@ -39,8 +39,8 @@ https://github.com/user-attachments/assets/c33a9caa-ca88-4bc7-a8a2-44baa7e5a0c9
 
 - **Python 3.10+**
 - **Node.js 18+**
-- **FFmpeg** — `brew install ffmpeg` on macOS or `apt install ffmpeg` on Ubuntu
-- **Gemini API key** — [Get yours here](https://aistudio.google.com/apikey)
+- **FFmpeg:** `brew install ffmpeg` on macOS or `apt install ffmpeg` on Ubuntu
+- **Gemini API key:** [Get yours here](https://aistudio.google.com/apikey)
 
 ### Installation
 
@@ -94,9 +94,9 @@ Open [http://localhost:3000](http://localhost:3000), enter your Gemini API key a
 
 The pipeline runs in **3 steps**:
 
-1. **AI Analysis & Script** — Gemini 3 Pro reads the repo page directly (via URL context), extracts stars, forks, features, and tech stack, then writes a punchy Fireship-style voiceover script with scene selection
-2. **Generate Voiceover** — Gemini 2.5 Pro TTS creates natural narration with per-scene tone guidance ("say this with building excitement")
-3. **Render Video** — Remotion renders dynamic React components into a 1080p MP4 with spring animations, transitions, and background music
+1. **AI Analysis & Script:** Gemini 3 Pro reads the repo page directly (via URL context), extracts stars, forks, features, and tech stack, then writes a punchy Fireship-style voiceover script with scene selection
+2. **Generate Voiceover:** Gemini 2.5 Pro TTS creates natural narration with per-scene tone guidance ("say this with building excitement")
+3. **Render Video:** Remotion renders dynamic React components into a 1080p MP4 with spring animations, transitions, and background music
 
 The AI adapts the video based on repo maturity:
 
@@ -114,7 +114,7 @@ All voices use Gemini 2.5 Pro TTS with conversational tone prompting:
 
 | Voice | Style |
 |-------|-------|
-| **Puck** ⭐ | Playful, energetic — great for hype videos |
+| **Puck** ⭐ | Playful, energetic: great for hype videos |
 | **Kore** | Warm, confident |
 | **Aoede** | Smooth, warm |
 | **Charon** | Deep, authoritative |
@@ -156,14 +156,14 @@ repotovideo/
 
 ## 🛠️ Tech Stack
 
-- **AI** — Gemini 3 Pro (analysis) + Gemini 2.5 Pro TTS (voiceover)
-- **Video** — [Remotion](https://remotion.dev) (React → MP4)
-- **Backend** — FastAPI (Python)
-- **Frontend** — Next.js + Framer Motion
-- **Audio** — FFmpeg (WAV → MP3 conversion)
+- **AI:** Gemini 3 Pro (analysis) + Gemini 2.5 Pro TTS (voiceover)
+- **Video:** [Remotion](https://remotion.dev) (React → MP4)
+- **Backend:** FastAPI (Python)
+- **Frontend:** Next.js + Framer Motion
+- **Audio:** FFmpeg (WAV → MP3 conversion)
 
 ---
 
 ## 📄 License
 
-MIT — fork it, customize it, make it yours.
+MIT - fork it, customize it, make it yours.
