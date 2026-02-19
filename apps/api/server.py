@@ -7,6 +7,8 @@ POST /api/generate → analyze repo → TTS → render → return video
 
 import asyncio
 import os
+import re
+import time
 import uuid
 from dataclasses import asdict
 from pathlib import Path
@@ -14,7 +16,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from pipeline.viral_analyzer import analyze_repo_for_viral
 from pipeline.viral_tts import generate_voiceover
@@ -30,8 +32,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Track active jobs
+# Track active jobs (with timestamps for cleanup)
 jobs: dict[str, dict] = {}
+JOB_TTL_SECONDS = 3600  # Clean up jobs older than 1 hour
+
+
+def _cleanup_old_jobs():
+    """Remove jobs older than JOB_TTL_SECONDS."""
+    now = time.time()
+    expired = [jid for jid, j in jobs.items() if now - j.get("created_at", now) > JOB_TTL_SECONDS]
+    for jid in expired:
+        jobs.pop(jid, None)
+
+
+GITHUB_URL_RE = re.compile(r"^https?://(www\.)?github\.com/[\w.\-]+/[\w.\-]+/?$")
 
 
 class GenerateRequest(BaseModel):
@@ -40,6 +54,16 @@ class GenerateRequest(BaseModel):
     music: str = "tech"
     voice: str = "Puck"
     music_volume: float = 0.22
+    
+    @field_validator("repo_url")
+    @classmethod
+    def validate_repo_url(cls, v: str) -> str:
+        v = v.strip().rstrip("/")
+        if not GITHUB_URL_RE.match(v + "/"):
+            raise ValueError(
+                f"Invalid GitHub URL: '{v}'. Expected format: https://github.com/owner/repo"
+            )
+        return v
 
 
 class JobStatus(BaseModel):
@@ -53,8 +77,12 @@ class JobStatus(BaseModel):
 @app.post("/api/generate")
 async def generate_video(req: GenerateRequest) -> dict:
     """Start a video generation job. Returns job_id to poll for status."""
+    _cleanup_old_jobs()
     job_id = str(uuid.uuid4())[:8]
-    jobs[job_id] = {"status": "pending", "step": 0, "message": "Starting...", "video_path": None}
+    jobs[job_id] = {
+        "status": "pending", "step": 0, "message": "Starting...",
+        "video_path": None, "created_at": time.time(),
+    }
     
     # Run pipeline in background
     asyncio.create_task(_run_pipeline(job_id, req))
@@ -102,7 +130,8 @@ MUSIC_MAP = {
 async def _run_pipeline(job_id: str, req: GenerateRequest):
     """Run the full video generation pipeline."""
     try:
-        # Set API key for this request
+        # Set API key for this request (safe: asyncio is single-threaded,
+        # and we reset it per-request before any await)
         os.environ["GEMINI_API_KEY"] = req.api_key
         
         # Step 1: AI Analysis (Gemini reads the repo page directly)

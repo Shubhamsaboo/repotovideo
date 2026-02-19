@@ -7,6 +7,7 @@ then renders with Remotion CLI.
 
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from dataclasses import asdict
@@ -14,6 +15,43 @@ from dataclasses import asdict
 
 FPS = 30
 VIDEO_DIR = Path(__file__).resolve().parent.parent.parent / "video"
+
+
+def _sanitize_js_string(s: str) -> str:
+    """Sanitize a string value for use in generated JS/TS code.
+    
+    Normalizes unicode characters Gemini may return (smart quotes, dashes, etc.)
+    and removes newlines. Does NOT escape quotes — json.dumps handles that.
+    """
+    if not isinstance(s, str):
+        return s
+    # Normalize smart/curly quotes to ASCII
+    s = s.replace("\u2018", "'").replace("\u2019", "'")   # ' '
+    s = s.replace("\u201c", '"').replace("\u201d", '"')   # " "
+    s = s.replace("\u2013", "-").replace("\u2014", "-")   # en/em dash
+    s = s.replace("\u2026", "...")                         # ellipsis
+    # Remove literal newlines (would break string literals)
+    s = s.replace("\n", " ").replace("\r", "")
+    return s
+
+
+def _dict_to_js_object(d: dict) -> str:
+    """Convert a Python dict to a JS object literal string.
+    
+    Uses json.dumps with double-quoted strings (valid JS/TS).
+    No quote-swapping needed — JSON IS valid JavaScript.
+    """
+    def _sanitize_value(v):
+        if isinstance(v, str):
+            return _sanitize_js_string(v)
+        elif isinstance(v, list):
+            return [_sanitize_value(item) for item in v]
+        elif isinstance(v, dict):
+            return {k: _sanitize_value(val) for k, val in v.items()}
+        return v
+    
+    sanitized = _sanitize_value(d)
+    return json.dumps(sanitized, indent=2, ensure_ascii=False)
 
 
 def generate_composition(
@@ -37,8 +75,8 @@ def generate_composition(
     
     total_dur = sum(durations.get(s, 5.0) for s in scenes)
     
-    # Build scene data
-    scene_data = json.dumps({
+    # Build scene data — use proper escaping to prevent broken JS strings
+    raw_data = {
         "name": analysis["name"],
         "fullName": analysis["full_name"],
         "description": analysis["description"],
@@ -50,7 +88,8 @@ def generate_composition(
         "tagline": analysis["tagline"],
         "features": analysis["features"],
         "techStack": analysis["tech_stack"],
-    }, indent=2).replace('"', "'").replace("\n", "\n")
+    }
+    scene_data = _dict_to_js_object(raw_data)
     
     # Build scene component imports & renders
     scene_imports = set()

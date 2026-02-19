@@ -51,44 +51,72 @@ def generate_voiceover(
         
         print(f"  🎤 Generating {scene_id} ({fname})...")
         
-        response = client.models.generate_content(
-            model=MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_modalities=["AUDIO"],
-                speech_config=types.SpeechConfig(
-                    voice_config=types.VoiceConfig(
-                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                            voice_name=voice
+        try:
+            response = client.models.generate_content(
+                model=MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name=voice
+                            )
                         )
-                    )
+                    ),
                 ),
-            ),
-        )
+            )
+        except Exception as e:
+            raise RuntimeError(f"TTS generation failed for scene '{scene_id}': {e}")
         
-        # Save raw PCM
-        for part in response.candidates[0].content.parts:
-            if part.inline_data:
-                with open(raw_path, "wb") as f:
-                    f.write(part.inline_data.data)
-                break
+        # Extract audio data from response
+        audio_data = None
+        if response.candidates:
+            for part in response.candidates[0].content.parts:
+                if part.inline_data:
+                    audio_data = part.inline_data.data
+                    break
         
-        # Convert to MP3
-        subprocess.run(
+        if not audio_data:
+            raise RuntimeError(
+                f"No audio data returned by TTS for scene '{scene_id}'. "
+                f"Check your Gemini API key and quota."
+            )
+        
+        with open(raw_path, "wb") as f:
+            f.write(audio_data)
+        
+        # Convert to MP3 (check exit code)
+        ffmpeg_result = subprocess.run(
             ["ffmpeg", "-y", "-f", "s16le", "-ar", "24000", "-ac", "1",
              "-i", raw_path, "-b:a", "192k", mp3_path],
-            capture_output=True,
-        )
-        
-        # Get duration
-        result = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
-             "-of", "csv=p=0", mp3_path],
             capture_output=True, text=True,
         )
-        dur = float(result.stdout.strip())
+        if ffmpeg_result.returncode != 0:
+            raise RuntimeError(
+                f"ffmpeg conversion failed for scene '{scene_id}': {ffmpeg_result.stderr}"
+            )
+        
+        # Get duration (with fallback)
+        try:
+            result = subprocess.run(
+                ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
+                 "-of", "csv=p=0", mp3_path],
+                capture_output=True, text=True,
+            )
+            dur = float(result.stdout.strip())
+        except (ValueError, AttributeError):
+            print(f"    ⚠️  Could not read duration for {scene_id}, using estimate")
+            dur = max(len(script.split()) * 0.35, 3.0)  # ~0.35s per word
+        
         durations[scene_id] = dur
         print(f"    ✅ {dur:.2f}s")
+        
+        # Cleanup temp file
+        try:
+            os.remove(raw_path)
+        except OSError:
+            pass
         
         scene_index += 1
     

@@ -16,6 +16,37 @@ from google import genai
 from google.genai import types
 
 
+def _parse_stars(value) -> int:
+    """Parse star/fork count that may be a string like '17.8K', '95K+', or '1.2M'."""
+    if isinstance(value, (int, float)):
+        return int(value)
+    if not isinstance(value, str):
+        return 0
+    s = value.strip().replace(",", "").replace("+", "")
+    multiplier = 1
+    if s.upper().endswith("K"):
+        multiplier = 1000
+        s = s[:-1]
+    elif s.upper().endswith("M"):
+        multiplier = 1_000_000
+        s = s[:-1]
+    try:
+        return int(float(s) * multiplier)
+    except ValueError:
+        return 0
+
+
+def _strip_json_fences(text: str) -> str:
+    """Strip markdown code fences if Gemini wrapped the JSON response."""
+    text = text.strip()
+    if text.startswith("```"):
+        # Remove opening fence (```json or ```)
+        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+    if text.endswith("```"):
+        text = text[:-3]
+    return text.strip()
+
+
 @dataclass
 class RepoAnalysis:
     name: str
@@ -100,12 +131,15 @@ async def analyze_repo_for_viral(repo_url: str) -> RepoAnalysis:
 
     raw = response.text
     try:
-        data = json.loads(raw)
+        data = json.loads(_strip_json_fences(raw))
     except json.JSONDecodeError:
-        fixed = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', raw)
+        # Try fixing invalid escape sequences
+        cleaned = _strip_json_fences(raw)
+        fixed = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', cleaned)
         data = json.loads(fixed)
 
-    stars = data.get("stars", 0)
+    stars = _parse_stars(data.get("stars", 0))
+    forks = _parse_stars(data.get("forks", 0))
 
     if stars >= 10000:
         hook_style = "counter"
@@ -122,13 +156,27 @@ async def analyze_repo_for_viral(repo_url: str) -> RepoAnalysis:
 
     voiceover = data.get("voiceover_scripts", {})
     voiceover = {k: v for k, v in voiceover.items() if k in scenes}
+    
+    # Fill missing voiceover keys with fallback scripts so no scene has silent audio
+    repo_name = data.get("name", "this repo")
+    fallback_scripts = {
+        "hook": f"Check out {repo_name}.",
+        "what": data.get("description", f"{repo_name} is an open source project."),
+        "features": "It comes packed with powerful features.",
+        "tech": "Built with a solid tech stack.",
+        "stats": f"{repo_name} is gaining traction in the community.",
+        "cta": f"Star {repo_name} on GitHub and try it today.",
+    }
+    for scene_id in scenes:
+        if scene_id not in voiceover or not voiceover[scene_id]:
+            voiceover[scene_id] = fallback_scripts.get(scene_id, f"Check out {repo_name}.")
 
     return RepoAnalysis(
         name=data.get("name", ""),
         full_name=data.get("full_name", ""),
         description=data.get("description", ""),
         stars=stars,
-        forks=data.get("forks", 0),
+        forks=forks,
         language=data.get("language", ""),
         topics=data.get("topics", []),
         frameworks=data.get("frameworks", []),
