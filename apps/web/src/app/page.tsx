@@ -328,11 +328,12 @@ export default function Home() {
           <AnimatedSection delay={0.4}>
             <div className="relative max-w-4xl mx-auto">
               <div className="relative rounded-2xl overflow-hidden border border-white/5">
-                <video
+                <iframe
                   className="w-full aspect-video"
-                  src="/assets/demo.mp4"
-                  controls
-                  playsInline
+                  src="https://www.youtube.com/embed/C6mMseavn8Q"
+                  title="RepoToViralVideo Demo"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
                 />
               </div>
               {/* Glow behind video */}
