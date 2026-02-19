@@ -8,6 +8,8 @@
   <img src="app_demo.png" width="100%" alt="RepoToViralVideo">
 </p>
 
+> ⚡ **Powered by Gemini 3.1 Pro (`gemini-3.1-pro-preview`)** — Google's latest model for deep repo analysis, feature extraction, and engaging script generation.
+
 No video editing skills needed. Just point it at a repo and get a ready-to-share video.
 
 ---
@@ -19,7 +21,7 @@ No video editing skills needed. Just point it at a repo and get a ready-to-share
 - 🎤 **AI Voiceover:** Gemini TTS generates natural, conversational narration for each scene
 - 🎵 **Background Music:** 4 bundled royalty-free tracks (chill, upbeat, tech, hype) or use your own
 - ⚡ **Fast Cuts:** Slide transitions between scenes, nothing stays static
-- 🧠 **Smart Analysis:** Gemini 3 Pro reads the repo page directly and extracts impressive stats, features, and selling points
+- 🧠 **Smart Analysis:** Gemini 3.1 Pro reads the repo page directly and extracts impressive stats, features, and selling points
 - 🎯 **Adaptive Scenes:** Automatically selects different video styles based on repo maturity (4–6 scenes)
 - 🖥️ **Web UI:** Modern frontend to generate videos right from your browser
 
@@ -94,7 +96,7 @@ Open [http://localhost:3000](http://localhost:3000), enter your Gemini API key a
 
 The pipeline runs in **3 steps**:
 
-1. **AI Analysis & Script:** Gemini 3 Pro reads the repo page directly (via URL context), extracts stars, forks, features, and tech stack, then writes a punchy Fireship-style voiceover script with scene selection
+1. **AI Analysis & Script:** Gemini 3.1 Pro reads the repo page directly (via URL context), extracts stars, forks, features, and tech stack, then writes a punchy Fireship-style voiceover script with scene selection
 2. **Generate Voiceover:** Gemini 2.5 Pro TTS creates natural narration with per-scene tone guidance ("say this with building excitement")
 3. **Render Video:** Remotion renders dynamic React components into a 1080p MP4 with spring animations, transitions, and background music
 
@@ -131,7 +133,7 @@ repotovideo/
 │   │   ├── server.py               # API server (port 8000)
 │   │   ├── requirements.txt
 │   │   └── pipeline/
-│   │       ├── viral_analyzer.py    # Gemini 3 Pro repo analysis + URL context
+│   │       ├── viral_analyzer.py    # Gemini 3.1 Pro repo analysis + URL context
 │   │       ├── viral_tts.py         # Gemini 2.5 Pro TTS voiceover
 │   │       └── viral_renderer.py    # Dynamic Remotion composition generator
 │   ├── video/                   # Remotion video renderer
@@ -156,7 +158,7 @@ repotovideo/
 
 ## 🛠️ Tech Stack
 
-- **AI:** Gemini 3 Pro (analysis) + Gemini 2.5 Pro TTS (voiceover)
+- **AI:** Gemini 3.1 Pro (analysis) + Gemini 2.5 Pro TTS (voiceover)
 - **Video:** [Remotion](https://remotion.dev) (React → MP4)
 - **Backend:** FastAPI (Python)
 - **Frontend:** Next.js + Framer Motion

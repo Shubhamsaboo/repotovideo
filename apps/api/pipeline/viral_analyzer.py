@@ -120,7 +120,7 @@ async def analyze_repo_for_viral(repo_url: str) -> RepoAnalysis:
     url_context_tool = types.Tool(url_context=types.UrlContext())
 
     response = client.models.generate_content(
-        model="gemini-3-pro-preview",
+        model="gemini-3.1-pro-preview",
         contents=f"Analyze this GitHub repo for a viral promo video: {repo_url}",
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,

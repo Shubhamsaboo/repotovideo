@@ -361,7 +361,7 @@ export default function Home() {
           </AnimatedSection>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            <FeatureCard icon={Sparkles} title="AI Analysis" desc="Gemini 3 Pro extracts the most impressive stats, features, and selling points from any repo." color="#FF3D5A" delay={0} />
+            <FeatureCard icon={Sparkles} title="AI Analysis" desc="Gemini 3.1 Pro extracts the most impressive stats, features, and selling points from any repo." color="#FF3D5A" delay={0} />
             <FeatureCard icon={Mic} title="Natural Voiceover" desc="Gemini TTS generates conversational, energetic narration — not robotic text-to-speech." color="#00FFB2" delay={0.1} />
             <FeatureCard icon={Film} title="Kinetic Typography" desc="Words slam in with spring physics. Numbers animate up. Nothing stays static." color="#3D8BFF" delay={0.2} />
             <FeatureCard icon={Music} title="Background Music" desc="4 bundled royalty-free tracks to match the vibe — chill, upbeat, tech, or hype." color="#FFD600" delay={0.3} />
@@ -390,7 +390,7 @@ export default function Home() {
           </AnimatedSection>
 
           <div className="space-y-10">
-            <StepCard step={1} icon={Sparkles} title="AI Analysis & Script" desc="Gemini 3 Pro reads the repo page directly, extracts impressive stats and features, and writes a punchy Fireship-style voiceover script." color="#FF3D5A" />
+            <StepCard step={1} icon={Sparkles} title="AI Analysis & Script" desc="Gemini 3.1 Pro reads the repo page directly, extracts impressive stats and features, and writes a punchy Fireship-style voiceover script." color="#FF3D5A" />
             <StepCard step={2} icon={Volume2} title="Generate Voiceover" desc="Gemini TTS creates natural, conversational narration with per-scene tone guidance." color="#00FFB2" />
             <StepCard step={3} icon={Film} title="Render Video" desc="Remotion renders React components into a 1080p video with spring animations, transitions, and background music." color="#3D8BFF" />
           </div>
