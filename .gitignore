@@ -23,3 +23,6 @@ apps/video/public/audio_viral/
 
 # OS
 .DS_Store
+
+# Lock files
+package-lock.json

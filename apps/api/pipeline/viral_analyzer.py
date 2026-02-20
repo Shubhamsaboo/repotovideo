@@ -1,5 +1,5 @@
 """
-🔥 Viral Video Analyzer — Gemini 2.5 Pro + URL Context
+🔥 Viral Video Analyzer — Gemini + URL Context
 
 Analyzes a GitHub repo using Gemini's URL context tool and produces
 everything needed for a viral promo video.
@@ -8,12 +8,15 @@ everything needed for a viral promo video.
 import json
 import os
 import asyncio
+import sys
 import re
-from dataclasses import dataclass, asdict
-from typing import Optional
+from dataclasses import dataclass
 
 from google import genai
 from google.genai import types
+
+
+MAX_RETRIES = 3
 
 
 def _parse_stars(value) -> int:
@@ -40,11 +43,105 @@ def _strip_json_fences(text: str) -> str:
     """Strip markdown code fences if Gemini wrapped the JSON response."""
     text = text.strip()
     if text.startswith("```"):
-        # Remove opening fence (```json or ```)
         text = text.split("\n", 1)[1] if "\n" in text else text[3:]
     if text.endswith("```"):
         text = text[:-3]
     return text.strip()
+
+
+def _clean_json_string(text: str) -> str:
+    """Remove JS-style comments and fix common Gemini JSON quirks."""
+    lines = text.split("\n")
+    cleaned = []
+    for line in lines:
+        in_string = False
+        escape = False
+        comment_start = None
+        for i, ch in enumerate(line):
+            if escape:
+                escape = False
+                continue
+            if ch == '\\':
+                escape = True
+                continue
+            if ch == '"':
+                in_string = not in_string
+            elif ch == '/' and not in_string and i + 1 < len(line) and line[i + 1] == '/':
+                comment_start = i
+                break
+        if comment_start is not None:
+            line = line[:comment_start].rstrip()
+        cleaned.append(line)
+    text = "\n".join(cleaned)
+    text = re.sub(r',\s*([}\]])', r'\1', text)
+    return text
+
+
+def _fix_empty_values(text: str) -> str:
+    """Fix Gemini's habit of returning empty values like  \"key\":,  instead of  \"key\": null,"""
+    # Match  ": ," or ":," (value missing between colon and comma/newline)
+    # Replace with ": null,"
+    text = re.sub(r':\s*,', ': null,', text)
+    # Also handle empty value at end before closing brace:  "key":}  or  "key":\n}
+    text = re.sub(r':\s*}', ': null}', text)
+    return text
+
+
+def _robust_parse_json(raw: str) -> dict:
+    """Parse JSON from Gemini with multiple fallback strategies."""
+    if not raw or not raw.strip():
+        raise ValueError("Gemini returned an empty response.")
+
+    text = _strip_json_fences(raw)
+
+    # Pre-process: fix empty values ("key":, -> "key": null,)
+    text = _fix_empty_values(text)
+
+    # Attempt 1: direct parse
+    try:
+        data = json.loads(text)
+        return _sanitize_nulls(data)
+    except json.JSONDecodeError:
+        pass
+
+    # Attempt 2: clean comments + trailing commas
+    cleaned = _clean_json_string(text)
+    cleaned = _fix_empty_values(cleaned)
+    try:
+        data = json.loads(cleaned)
+        return _sanitize_nulls(data)
+    except json.JSONDecodeError:
+        pass
+
+    # Attempt 3: fix invalid escape sequences
+    fixed = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', cleaned)
+    try:
+        data = json.loads(fixed)
+        return _sanitize_nulls(data)
+    except json.JSONDecodeError as e:
+        print(f"\n❌ All JSON parse attempts failed. Raw ({len(raw)} chars):\n{raw[:1500]}\n",
+              file=sys.stderr, flush=True)
+        raise ValueError(f"Could not parse Gemini response as JSON: {e}") from e
+
+
+# Fields that must be lists vs strings
+_LIST_FIELDS = {"topics", "frameworks", "features", "tech_stack", "scenes"}
+_DICT_FIELDS = {"voiceover_scripts"}
+
+
+def _sanitize_nulls(data: dict) -> dict:
+    """Convert null values to appropriate empty defaults."""
+    for key, val in data.items():
+        if val is None:
+            if key in _LIST_FIELDS:
+                data[key] = []
+            elif key in _DICT_FIELDS:
+                data[key] = {}
+            elif key in ("stars", "forks"):
+                data[key] = 0
+            else:
+                data[key] = ""
+    return data
 
 
 @dataclass
@@ -67,41 +164,71 @@ class RepoAnalysis:
     music_mood: str
 
 
+# ── Schema that Gemini must conform to ──────────────────────────────
+FEATURE_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "emoji": types.Schema(type=types.Type.STRING),
+        "title": types.Schema(type=types.Type.STRING),
+        "desc": types.Schema(type=types.Type.STRING),
+    },
+    required=["emoji", "title", "desc"],
+)
+
+TECH_STACK_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "emoji": types.Schema(type=types.Type.STRING),
+        "name": types.Schema(type=types.Type.STRING),
+    },
+    required=["emoji", "name"],
+)
+
+VOICEOVER_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "hook": types.Schema(type=types.Type.STRING),
+        "what": types.Schema(type=types.Type.STRING),
+        "features": types.Schema(type=types.Type.STRING),
+        "tech": types.Schema(type=types.Type.STRING),
+        "stats": types.Schema(type=types.Type.STRING),
+        "cta": types.Schema(type=types.Type.STRING),
+    },
+    required=["hook", "what", "features", "tech", "stats", "cta"],
+)
+
+RESPONSE_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        "name": types.Schema(type=types.Type.STRING),
+        "full_name": types.Schema(type=types.Type.STRING),
+        "description": types.Schema(type=types.Type.STRING),
+        "stars": types.Schema(type=types.Type.INTEGER),
+        "forks": types.Schema(type=types.Type.INTEGER),
+        "language": types.Schema(type=types.Type.STRING),
+        "topics": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
+        "frameworks": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
+        "features": types.Schema(type=types.Type.ARRAY, items=FEATURE_SCHEMA),
+        "tech_stack": types.Schema(type=types.Type.ARRAY, items=TECH_STACK_SCHEMA),
+        "tagline": types.Schema(type=types.Type.STRING),
+        "hook_text": types.Schema(type=types.Type.STRING),
+        "voiceover_scripts": VOICEOVER_SCHEMA,
+        "music_mood": types.Schema(
+            type=types.Type.STRING,
+            enum=["hype", "tech", "chill", "upbeat"],
+        ),
+    },
+    required=[
+        "name", "full_name", "description", "stars", "forks",
+        "language", "topics", "frameworks", "features", "tech_stack",
+        "tagline", "hook_text", "voiceover_scripts", "music_mood",
+    ],
+)
+
+
 SYSTEM_PROMPT = """You are a viral video producer analyzing GitHub repos. Your job is to extract the most impressive, shareable aspects and write punchy voiceover scripts.
 
 I'm giving you a GitHub repo URL. Use the URL context to read the repo page, README, and any other relevant info.
-
-Return a JSON object with:
-
-{
-  "name": "repo-name",
-  "full_name": "owner/repo-name",
-  "description": "One-line description of what the repo does",
-  "stars": 12345,
-  "forks": 678,
-  "language": "Python",
-  "topics": ["ai", "machine-learning"],
-  "frameworks": ["list", "of", "frameworks/tools"],
-  "features": [
-    {"emoji": "🤖", "title": "SHORT TITLE", "desc": "One line"},
-    // 3-4 features max
-  ],
-  "tech_stack": [
-    {"emoji": "🧠", "name": "ToolName"},
-    // up to 8 items
-  ],
-  "tagline": "Punchy tagline (8 words max)",
-  "hook_text": "Opening hook — grab attention in 3 seconds",
-  "voiceover_scripts": {
-    "hook": "3-5 second hook. Punchy. Numbers if impressive.",
-    "what": "5-8 seconds explaining what this is. Conversational.",
-    "features": "8-10 seconds listing key features. Build excitement.",
-    "tech": "5-8 seconds on the tech stack.",
-    "stats": "5-8 seconds on impressive numbers.",
-    "cta": "3-5 seconds call to action."
-  },
-  "music_mood": "hype" or "tech" or "chill" or "upbeat"
-}
 
 RULES:
 - Write like Fireship — punchy, opinionated, no filler
@@ -109,35 +236,70 @@ RULES:
 - If >10K stars, lead with impressive numbers
 - Stars and forks must be actual numbers from the repo page, not made up
 - Voiceover must sound conversational, not robotic
-- Keep everything SHORT. 30-45 second video."""
+- Keep everything SHORT. 30-45 second video.
+- Return 3-4 features max
+- Return up to 8 tech_stack items
+- tagline must be 8 words max
+- hook_text is the opening hook to grab attention in 3 seconds
+- voiceover_scripts.hook: 3-5 second hook. Punchy. Numbers if impressive.
+- voiceover_scripts.what: 5-8 seconds explaining what this is. Conversational.
+- voiceover_scripts.features: 8-10 seconds listing key features. Build excitement.
+- voiceover_scripts.tech: 5-8 seconds on the tech stack.
+- voiceover_scripts.stats: 5-8 seconds on impressive numbers.
+- voiceover_scripts.cta: 3-5 seconds call to action."""
 
 
 async def analyze_repo_for_viral(repo_url: str) -> RepoAnalysis:
-    """Analyze a repo using Gemini with URL context for viral video generation."""
+    """Analyze a repo using Gemini with URL context for viral video generation.
+    
+    Retries up to MAX_RETRIES times on failure.
+    """
 
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-
     url_context_tool = types.Tool(url_context=types.UrlContext())
 
-    response = client.models.generate_content(
-        model="gemini-3.1-pro-preview",
-        contents=f"Analyze this GitHub repo for a viral promo video: {repo_url}",
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            tools=[url_context_tool],
-            response_mime_type="application/json",
-        ),
+    last_error = None
+
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            print(f"🔍 Attempt {attempt}/{MAX_RETRIES}: Analyzing {repo_url}...",
+                  flush=True)
+
+            response = client.models.generate_content(
+                model="gemini-3.1-pro-preview",
+                contents=f"Analyze this GitHub repo for a viral promo video: {repo_url}",
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                    tools=[url_context_tool],
+                    response_mime_type="application/json",
+                    response_schema=RESPONSE_SCHEMA,
+                ),
+            )
+
+            raw = response.text
+            print(f"✅ Got response ({len(raw) if raw else 0} chars)", flush=True)
+
+            data = _robust_parse_json(raw)
+            
+            # Successfully parsed — build the result
+            return _build_analysis(data)
+
+        except Exception as e:
+            last_error = e
+            print(f"⚠️  Attempt {attempt} failed: {e}", file=sys.stderr, flush=True)
+            if attempt < MAX_RETRIES:
+                wait = attempt * 2  # 2s, 4s backoff
+                print(f"   Retrying in {wait}s...", flush=True)
+                await asyncio.sleep(wait)
+
+    # All retries exhausted
+    raise ValueError(
+        f"Failed after {MAX_RETRIES} attempts. Last error: {last_error}"
     )
 
-    raw = response.text
-    try:
-        data = json.loads(_strip_json_fences(raw))
-    except json.JSONDecodeError:
-        # Try fixing invalid escape sequences
-        cleaned = _strip_json_fences(raw)
-        fixed = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', cleaned)
-        data = json.loads(fixed)
 
+def _build_analysis(data: dict) -> RepoAnalysis:
+    """Build a RepoAnalysis from parsed JSON data."""
     stars = _parse_stars(data.get("stars", 0))
     forks = _parse_stars(data.get("forks", 0))
 
@@ -157,7 +319,7 @@ async def analyze_repo_for_viral(repo_url: str) -> RepoAnalysis:
     voiceover = data.get("voiceover_scripts", {})
     voiceover = {k: v for k, v in voiceover.items() if k in scenes}
     
-    # Fill missing voiceover keys with fallback scripts so no scene has silent audio
+    # Fill missing voiceover keys with fallback scripts
     repo_name = data.get("name", "this repo")
     fallback_scripts = {
         "hook": f"Check out {repo_name}.",
@@ -192,7 +354,7 @@ async def analyze_repo_for_viral(repo_url: str) -> RepoAnalysis:
 
 
 if __name__ == "__main__":
-    import sys
+    from dataclasses import asdict
 
     if len(sys.argv) < 2:
         print("Usage: python viral_analyzer.py <github-url>")
@@ -200,7 +362,6 @@ if __name__ == "__main__":
 
     async def main():
         url = sys.argv[1]
-        print(f"🔍 Analyzing {url}...")
         analysis = await analyze_repo_for_viral(url)
         print(json.dumps(asdict(analysis), indent=2))
 
