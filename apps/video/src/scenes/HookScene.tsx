@@ -61,7 +61,7 @@ export const HookScene: React.FC<{ data: RepoData }> = ({ data }) => {
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", zIndex: 1 }}>
           <div style={{ fontSize: 72, marginBottom: 10, opacity: numEntry, transform: `scale(${numEntry * pulse})` }}>🚀</div>
           <div style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 120, fontWeight: 900, letterSpacing: -5, opacity: numEntry, transform: `scale(${numEntry})`, background: `linear-gradient(135deg, ${C.teal}, ${C.blue})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1 }}>
-            {Math.floor(data.stars / 1000)}K+ Stars
+            {data.stars >= 10000 ? `${Math.floor(data.stars / 1000)}K+` : data.stars >= 1000 ? `${(data.stars / 1000).toFixed(1)}K+` : `${data.stars.toLocaleString()}`} Stars
           </div>
           <div style={{ fontFamily: "Inter, system-ui, sans-serif", fontSize: 36, color: C.teal, marginTop: 20, opacity: subEntry, transform: `translateY(${interpolate(subEntry, [0, 1], [20, 0])}px)`, fontWeight: 700 }}>
             and climbing fast

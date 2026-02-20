@@ -210,8 +210,19 @@ RESPONSE_SCHEMA = types.Schema(
         "frameworks": types.Schema(type=types.Type.ARRAY, items=types.Schema(type=types.Type.STRING)),
         "features": types.Schema(type=types.Type.ARRAY, items=FEATURE_SCHEMA),
         "tech_stack": types.Schema(type=types.Type.ARRAY, items=TECH_STACK_SCHEMA),
-        "tagline": types.Schema(type=types.Type.STRING),
+        "hook_style": types.Schema(
+            type=types.Type.STRING,
+            enum=["counter", "momentum", "problem"],
+        ),
         "hook_text": types.Schema(type=types.Type.STRING),
+        "tagline": types.Schema(type=types.Type.STRING),
+        "scenes": types.Schema(
+            type=types.Type.ARRAY,
+            items=types.Schema(
+                type=types.Type.STRING,
+                enum=["hook", "what", "features", "tech", "stats", "cta"],
+            ),
+        ),
         "voiceover_scripts": VOICEOVER_SCHEMA,
         "music_mood": types.Schema(
             type=types.Type.STRING,
@@ -221,7 +232,8 @@ RESPONSE_SCHEMA = types.Schema(
     required=[
         "name", "full_name", "description", "stars", "forks",
         "language", "topics", "frameworks", "features", "tech_stack",
-        "tagline", "hook_text", "voiceover_scripts", "music_mood",
+        "hook_style", "hook_text", "tagline", "scenes",
+        "voiceover_scripts", "music_mood",
     ],
 )
 
@@ -232,21 +244,17 @@ I'm giving you a GitHub repo URL. Use the URL context to read the repo page, REA
 
 RULES:
 - Write like Fireship — punchy, opinionated, no filler
-- If <100 stars, focus on WHAT IT DOES, not vanity metrics
-- If >10K stars, lead with impressive numbers
 - Stars and forks must be actual numbers from the repo page, not made up
 - Voiceover must sound conversational, not robotic
 - Keep everything SHORT. 30-45 second video.
-- Return 3-4 features max
-- Return up to 8 tech_stack items
-- tagline must be 8 words max
-- hook_text is the opening hook to grab attention in 3 seconds
-- voiceover_scripts.hook: 3-5 second hook. Punchy. Numbers if impressive.
-- voiceover_scripts.what: 5-8 seconds explaining what this is. Conversational.
-- voiceover_scripts.features: 8-10 seconds listing key features. Build excitement.
-- voiceover_scripts.tech: 5-8 seconds on the tech stack.
-- voiceover_scripts.stats: 5-8 seconds on impressive numbers.
-- voiceover_scripts.cta: 3-5 seconds call to action."""
+- Return 3-4 features max, up to 8 tech_stack items
+- tagline: 8 words max
+- hook_text: opening hook to grab attention in 3 seconds
+- hook_style: choose "counter" if the repo has massive stars (>10K), "momentum" if growing (>100 stars), or "problem" if newer/smaller — focus on the problem it solves
+- scenes: choose which scenes to include from [hook, what, features, tech, stats, cta]. Always include hook, what, features, cta. Only include "tech" if the tech stack is interesting enough to feature. Only include "stats" if the numbers are impressive.
+- voiceover_scripts: write a script for EVERY key (hook, what, features, tech, stats, cta) regardless of scenes chosen
+- If <100 stars, focus voiceovers on WHAT IT DOES, not vanity metrics
+- If >10K stars, lead with impressive numbers in the hook"""
 
 
 async def analyze_repo_for_viral(repo_url: str) -> RepoAnalysis:
@@ -299,39 +307,31 @@ async def analyze_repo_for_viral(repo_url: str) -> RepoAnalysis:
 
 
 def _build_analysis(data: dict) -> RepoAnalysis:
-    """Build a RepoAnalysis from parsed JSON data."""
+    """Build a RepoAnalysis from parsed JSON data. Model decides structure."""
     stars = _parse_stars(data.get("stars", 0))
     forks = _parse_stars(data.get("forks", 0))
 
-    if stars >= 10000:
-        hook_style = "counter"
-        scenes = ["hook", "what", "features", "tech", "stats", "cta"]
-    elif stars >= 100:
-        hook_style = "momentum"
-        scenes = ["hook", "what", "features", "tech", "cta"]
-    else:
-        hook_style = "problem"
-        scenes = ["hook", "what", "features", "cta"]
+    # Model chooses scenes; use 'or' so empty lists from null-fix also get defaults
+    scenes = data.get("scenes") or ["hook", "what", "features", "cta"]
+    features = (data.get("features") or [])[:4]
+    tech_stack = (data.get("tech_stack") or [])[:8]
 
-    if len(data.get("tech_stack", [])) < 3 and "tech" in scenes:
-        scenes.remove("tech")
+    # Drop scenes that have no data to display
+    if not features and "features" in scenes:
+        scenes = [s for s in scenes if s != "features"]
+    if not tech_stack and "tech" in scenes:
+        scenes = [s for s in scenes if s != "tech"]
+    if stars < 100 and "stats" in scenes:
+        scenes = [s for s in scenes if s != "stats"]
 
-    voiceover = data.get("voiceover_scripts", {})
-    voiceover = {k: v for k, v in voiceover.items() if k in scenes}
-    
-    # Fill missing voiceover keys with fallback scripts
+    voiceover = data.get("voiceover_scripts") or {}
+    voiceover = {k: v for k, v in voiceover.items() if k in scenes and v}
+
+    # Safety: ensure every chosen scene has a voiceover
     repo_name = data.get("name", "this repo")
-    fallback_scripts = {
-        "hook": f"Check out {repo_name}.",
-        "what": data.get("description", f"{repo_name} is an open source project."),
-        "features": "It comes packed with powerful features.",
-        "tech": "Built with a solid tech stack.",
-        "stats": f"{repo_name} is gaining traction in the community.",
-        "cta": f"Star {repo_name} on GitHub and try it today.",
-    }
     for scene_id in scenes:
-        if scene_id not in voiceover or not voiceover[scene_id]:
-            voiceover[scene_id] = fallback_scripts.get(scene_id, f"Check out {repo_name}.")
+        if scene_id not in voiceover:
+            voiceover[scene_id] = f"Check out {repo_name} on GitHub."
 
     return RepoAnalysis(
         name=data.get("name", ""),
@@ -340,18 +340,17 @@ def _build_analysis(data: dict) -> RepoAnalysis:
         stars=stars,
         forks=forks,
         language=data.get("language", ""),
-        topics=data.get("topics", []),
-        frameworks=data.get("frameworks", []),
-        features=data.get("features", [])[:4],
-        tech_stack=data.get("tech_stack", [])[:8],
-        hook_style=hook_style,
+        topics=data.get("topics") or [],
+        frameworks=data.get("frameworks") or [],
+        features=features,
+        tech_stack=tech_stack,
+        hook_style=data.get("hook_style") or "problem",
         hook_text=data.get("hook_text", ""),
         tagline=data.get("tagline", ""),
         scenes=scenes,
         voiceover_scripts=voiceover,
-        music_mood=data.get("music_mood", "tech"),
+        music_mood=data.get("music_mood") or "tech",
     )
-
 
 if __name__ == "__main__":
     from dataclasses import asdict
